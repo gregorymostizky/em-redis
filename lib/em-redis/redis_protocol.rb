@@ -18,33 +18,7 @@ module EventMachine
       ASTERISK = "*".freeze
       DELIM    = "\r\n".freeze
 
-      BULK_COMMANDS = {
-        "set"       => true,
-        "setnx"     => true,
-        "rpush"     => true,
-        "lpush"     => true,
-        "lset"      => true,
-        "lrem"      => true,
-        "sadd"      => true,
-        "srem"      => true,
-        "sismember" => true,
-        "echo"      => true,
-        "getset"    => true,
-        "smove"     => true,
-        "zadd"      => true,
-        "zincrby"   => true,
-        "zrem"      => true,
-        "zscore"    => true
-      }
-
-      MULTI_BULK_COMMANDS = {
-        "mset"      => true,
-        "msetnx"    => true,
-        # these aliases aren't in redis gem
-        "multi_get" => true
-      }
-
-      BOOLEAN_PROCESSOR = lambda{|r| %w(1 OK).include? r.to_s }
+      BOOLEAN_PROCESSOR = lambda{|r| r == 1 }
 
       REPLY_PROCESSOR = {
         "exists"    => BOOLEAN_PROCESSOR,
@@ -60,7 +34,16 @@ module EventMachine
         "renamenx"  => BOOLEAN_PROCESSOR,
         "expire"    => BOOLEAN_PROCESSOR,
         "select"    => BOOLEAN_PROCESSOR, # not in redis gem
-        "keys"      => lambda{|r| r.split(" ")},
+        "hset"      => BOOLEAN_PROCESSOR,
+        "hdel"      => BOOLEAN_PROCESSOR,
+        "hexists"   => BOOLEAN_PROCESSOR,
+        "keys"      => lambda {|r|
+          if r.is_a?(Array)
+            r
+          else
+            r.split(" ")
+          end
+        },
         "info"      => lambda{|r|
           info = {}
           r.each_line {|kv|
@@ -68,6 +51,9 @@ module EventMachine
             info[k.to_sym] = v
           }
           info
+        }, 
+        "hgetall"   => lambda{|r|
+          Hash[*r]
         }
       }
 
@@ -170,11 +156,11 @@ module EventMachine
       def sort(key, options={}, &blk)
         cmd = ["SORT"]
         cmd << key
-        cmd << "BY #{options[:by]}" if options[:by]
-        cmd << "GET #{[options[:get]].flatten * ' GET '}" if options[:get]
-        cmd << "#{options[:order]}" if options[:order]
-        cmd << "LIMIT #{options[:limit].join(' ')}" if options[:limit]
-        call_command(cmd, &blk)
+        cmd << ["BY", options[:by]] if options[:by]
+        cmd << [options[:get]].flatten.map { |key| ["GET", key] } if options[:get]
+        cmd << options[:order].split(/\s+/) if options[:order]
+        cmd << ["LIMIT", options[:limit]] if options[:limit]
+        call_command(cmd.flatten, &blk)
       end
 
       def incr(key, increment = nil, &blk)
@@ -218,6 +204,45 @@ module EventMachine
         call_command(['quit'], &blk)
       end
 
+      def exec(&blk)
+        call_command(['exec'], &blk)
+      end
+
+      # I'm not sure autocommit is a good idea.
+      # For example:
+      #   r.multi { r.set('a', 'b') { raise "kaboom" } }
+      # will commit "a" and will stop EM
+      def multi
+        call_command(['multi'])
+        if block_given?
+          begin
+            yield self
+            exec
+          rescue Exception => e
+            discard
+            raise e
+          end
+        end
+      end
+
+      def mset(*args, &blk)
+        hsh = args.pop if Hash === args.last
+        if hsh
+          call_command(hsh.to_a.flatten.unshift(:mset), &blk)
+        else
+          call_command(args.unshift(:mset), &blk)
+        end
+      end
+
+      def msetnx(*args, &blk)
+        hsh = args.pop if Hash === args.last
+        if hsh
+          call_command(hsh.to_a.flatten.unshift(:msetnx), &blk)
+        else
+          call_command(args.unshift(:msetnx), &blk)
+        end
+      end
+
       def errback(&blk)
         @error_callback = blk
       end
@@ -227,67 +252,37 @@ module EventMachine
         call_command(argv, &blk)
       end
 
+      def maybe_lock(&blk)
+        if !EM.reactor_thread?
+          EM.schedule { maybe_lock(&blk) }
+        elsif @connected
+          yield
+        else
+          callback { yield }
+        end
+      end
+
       def call_command(argv, &blk)
-        callback { raw_call_command(argv, &blk) }
-      end
-
-      def raw_call_command(argv, &blk)
-        argv[0] = argv[0].to_s unless argv[0].kind_of? String
-        send_command(argv)
-        @redis_callbacks << [REPLY_PROCESSOR[argv[0]], blk]
-      end
-
-      def call_commands(argvs, &blk)
-        callback { raw_call_commands(argvs, &blk) }
-      end
-
-      def raw_call_commands(argvs, &blk)
-        if argvs.empty?  # Shortcut
-          blk.call []
-          return
-        end
-
-        argvs.each do |argv|
-          argv[0] = argv[0].to_s unless argv[0].kind_of? String
-          send_command argv
-        end
-        # FIXME: argvs may contain heterogenous commands, storing all
-        # REPLY_PROCESSORs may turn out expensive and has been omitted
-        # for now.
-        @redis_callbacks << [nil, argvs.length, blk]
-      end
-
-      def send_command(argv)
         argv = argv.dup
 
-        if MULTI_BULK_COMMANDS[argv.flatten[0].to_s]
-          # TODO improve this code
-          argvp   = argv.flatten
-          values  = argvp.pop.to_a.flatten
-          argvp   = values.unshift(argvp[0])
-          command = ["*#{argvp.size}"]
-          argvp.each do |v|
-            v = v.to_s
-            command << "$#{get_size(v)}"
-            command << v
-          end
-          command = command.map {|cmd| "#{cmd}\r\n"}.join
-        else
-          command = ""
-          bulk = nil
-          argv[0] = argv[0].to_s.downcase
-          argv[0] = ALIASES[argv[0]] if ALIASES[argv[0]]
-          raise "#{argv[0]} command is disabled" if DISABLED_COMMANDS[argv[0]]
-          if BULK_COMMANDS[argv[0]] and argv.length > 1
-            bulk = argv[-1].to_s
-            argv[-1] = get_size(bulk)
-          end
-          command << "#{argv.join(' ')}\r\n"
-          command << "#{bulk}\r\n" if bulk
+        argv[0] = argv[0].to_s.downcase
+        argv[0] = ALIASES[argv[0]] if ALIASES[argv[0]]
+        raise "#{argv[0]} command is disabled" if DISABLED_COMMANDS[argv[0]]
+
+        command = ""
+        command << "*#{argv.size}\r\n"
+        argv.each do |a|
+          a = a.to_s
+          command << "$#{get_size(a)}\r\n"
+          command << a
+          command << "\r\n"
         end
 
         @logger.debug { "*** sending: #{command}" } if @logger
-        send_data command
+        maybe_lock do
+          @redis_callbacks << [REPLY_PROCESSOR[argv[0]], blk]
+          send_data command
+        end
       end
 
       ##
@@ -318,7 +313,7 @@ module EventMachine
           else raise ArgumentError, 'first argument must be Hash or String'
           end
         when 2
-          options = {:host => args[1], :port => args[2]}
+          options = {:host => args[0], :port => args[1]}
         else
           raise ArgumentError, "wrong number of arguments (#{args.length} for 1)"
         end
@@ -354,6 +349,7 @@ module EventMachine
         @logger.debug { "Connected to #{@host}:#{@port}" } if @logger
 
         @redis_callbacks = []
+        @previous_multibulks = []
         @multibulk_n     = false
         @reconnecting    = false
         @connected       = true
@@ -410,10 +406,14 @@ module EventMachine
         #e.g. *2\r\n$1\r\na\r\n$1\r\nb\r\n 
         when ASTERISK
           multibulk_count = Integer(reply_args)
-          if multibulk_count == -1
+          if multibulk_count == -1 || multibulk_count == 0
             dispatch_response([])
           else
-            start_multibulk(multibulk_count)
+            if @multibulk_n
+              @previous_multibulks << [@multibulk_n, @multibulk_values]
+            end
+            @multibulk_n = multibulk_count
+            @multibulk_values = []
           end
         # Whu?
         else
@@ -429,7 +429,11 @@ module EventMachine
 
           if @multibulk_n == 0
             value = @multibulk_values
-            @multibulk_n = false
+            @multibulk_n,@multibulk_values = @previous_multibulks.pop
+            if @multibulk_n
+              dispatch_response(value)
+              return
+            end
           else
             return
           end
@@ -451,11 +455,6 @@ module EventMachine
             @values = []
           end
         end
-      end
-
-      def start_multibulk(multibulk_count)
-        @multibulk_n = multibulk_count
-        @multibulk_values = []
       end
 
       def unbind

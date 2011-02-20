@@ -1,4 +1,5 @@
 require File.expand_path(File.dirname(__FILE__) + "/test_helper.rb")
+require 'stringio'
 require 'logger'
 
 EM.describe EM::Protocols::Redis do
@@ -10,6 +11,7 @@ EM.describe EM::Protocols::Redis do
     @r['foo'] = 'bar'
   end
 
+  after { @r.close_connection }
 
   should "be able to provide a logger" do
     log = StringIO.new
@@ -644,25 +646,115 @@ EM.describe EM::Protocols::Redis do
   #   done
   # end
 
-  it "should work with 10 commands" do
-    @r.call_commands((1..10).map { |i|
-                       ['get', "foo"]
-                     }) do |rs|
-      rs.length.should == 10
-      rs.each { |r| r.should == "bar" }
-      done
-    end
+  it "should run MULTI without a block" do
+    @r.multi
+    @r.get("key1") { |r| r.should == "QUEUED" }
+    @r.discard { done }
   end
-  it "should work with 1 command" do
-    @r.call_commands([['get', "foo"]]) do |rs|
-      rs.length.should == 1
-      rs[0].should == "bar"
-      done
+
+  it "should run MULTI/EXEC with a block" do
+    @r.multi do
+      @r.set "key1", "value1"
     end
+
+    @r.get("key1") { |r| r.should == "value1" }
+
+    begin
+      @r.multi do
+        @r.set "key2", "value2"
+        raise "Some error"
+        @r.set "key3", "value3"
+      end
+    rescue
+    end
+
+    @r.get("key2") { |r| r.should == nil }
+    @r.get("key3") { |r| r.should == nil; done}
   end
-  it "should work with zero commands" do
-    @r.call_commands([]) do |rs|
-      rs.should == []
+
+  it "should yield the Redis object when using #multi with a block" do
+    @r.multi do |multi|
+      multi.set "key1", "value1"
+    end
+
+    @r.get("key1") { |r| r.should == "value1"; done }
+  end
+
+  it "can set and get hash values" do
+    @r.hset("rush", "signals", "1982") { |r| r.should == true }
+    @r.hexists("rush", "signals") { |r| r.should == true }
+    @r.hget("rush", "signals") { |r| r.should == "1982"; done }
+  end
+
+  it "can delete hash values" do
+    @r.hset("rush", "YYZ", "1981")
+    @r.hdel("rush", "YYZ") { |r| r.should == true }
+    @r.hexists("rush", "YYZ") { |r| r.should == false; done }
+  end
+end
+
+# Yup, bacon can't handle nested describe blocks properly
+EM.describe EM::Protocols::Redis, "with some hash values" do
+  default_timeout 1
+
+  before do
+    @r = EM::Protocols::Redis.connect :db => 14
+    @r.flushdb
+    @r['foo'] = 'bar'
+    @r.hset("rush", "permanent waves", "1980")
+    @r.hset("rush", "moving pictures", "1981")
+    @r.hset("rush", "signals", "1982")
+  end
+
+  after { @r.close_connection }
+
+  it "can get the length of the hash" do
+    @r.hlen("rush") { |r| r.should == 3 }
+    @r.hlen("yyz") { |r| r.should == 0; done }
+  end
+
+  it "can get the keys and values of the hash" do
+    @r.hkeys("rush") { |r| r.should == ["permanent waves", "moving pictures", "signals"] }
+    @r.hvals("rush") { |r| r.should == %w[1980 1981 1982] }
+    @r.hvals("yyz") { |r| r.should == []; done }
+  end
+
+  it "returns a hash for HGETALL" do
+    @r.hgetall("rush") do |r|
+        r.should == {
+        "permanent waves" => "1980",
+        "moving pictures" => "1981",
+        "signals"         => "1982"
+      }
+    end
+    @r.hgetall("yyz") { |r| r.should == {}; done }
+  end
+end
+
+EM.describe EM::Protocols::Redis, "with nested multi-bulk response" do
+  default_timeout 1
+
+  before do
+    @r = EM::Protocols::Redis.connect :db => 14
+    @r.flushdb
+    @r.set 'user:one:id', 'id-one'
+    @r.set 'user:two:id', 'id-two'
+    @r.sadd "user:one:interests", "first-interest"
+    @r.sadd "user:one:interests", "second-interest"
+    @r.sadd "user:two:interests", "third-interest"
+  end
+
+  after { @r.close_connection }
+
+  it "returns array of arrays" do
+    @r.multi
+    @r.smembers "user:one:interests"
+    @r.smembers "user:two:interests"
+    @r.exec do |user_interests|
+      user_interests.should == [["second-interest", "first-interest"], ['third-interest']]
+    end
+    @r.mget("user:one:id", "user:two:id") do |user_ids|
+      user_ids.should == ['id-one', 'id-two']
       done
     end
   end
