@@ -3,7 +3,7 @@ require File.expand_path('../lib/em-redis/version.rb', __FILE__)
 Gem::Specification.new do |s|
   s.name = "superfeedr-em-redis"
   s.version = EMRedis::VERSION
-  s.authors = ['Jonathan Broad', 'Eugene Pimenov', 'Julien Genestoux']
+  s.authors = ['Jonathan Broad', 'Eugene Pimenov', 'Stephan Maka', 'Julien Genestoux']
   s.homepage = 'http://github.com/superfeedr/em-redis'
 
   s.files = Dir['lib/**/*', '*.txt']
