@@ -56,7 +56,11 @@ module EventMachine
           info
         }, 
         "hgetall"   => lambda{|r|
-          Hash[*r]
+          begin
+            Hash[*r] 
+          rescue ArgumentError # Happens when the key is not set.
+            {}
+          end
         }
       }
 
