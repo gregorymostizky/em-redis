@@ -58,7 +58,7 @@ module EventMachine
         "hgetall"   => lambda{|r|
           begin
             Hash[*r] 
-          rescue ArgumentError # Happens when the key is not set.
+          rescue ArgumentError # Happens when the key is not set, redis returns none.
             {}
           end
         }
@@ -269,17 +269,16 @@ module EventMachine
         end
       end
       
-      def call_commands(pipeline, &blk)
+      def call_commands(pipeline, pipelined = true, &blk)
         command = ""
-        processors = []
+        comms = []
         pipeline.each  do |argv|
-          
           argv[0] = argv[0].to_s.downcase
         
           argv[0] = ALIASES[argv[0]] if ALIASES[argv[0]]
           raise "#{argv[0]} command is disabled" if DISABLED_COMMANDS[argv[0]]
 
-          processors.push(REPLY_PROCESSOR[argv[0]])
+          comms.push(argv)
           command << "*#{argv.size}\r\n"
           argv.each do |a|
             a = a.to_s
@@ -291,32 +290,13 @@ module EventMachine
         
         @logger.debug { "*** sending: #{command}" } if @logger
         maybe_lock do
-          @redis_callbacks << [processors, processors.size, blk]
+          @redis_callbacks << [comms, pipelined, blk]
           send_data command
         end
       end
 
       def call_command(argv, &blk)
-        argv = argv.dup
-
-        argv[0] = argv[0].to_s.downcase
-        argv[0] = ALIASES[argv[0]] if ALIASES[argv[0]]
-        raise "#{argv[0]} command is disabled" if DISABLED_COMMANDS[argv[0]]
-
-        command = ""
-        command << "*#{argv.size}\r\n"
-        argv.each do |a|
-          a = a.to_s
-          command << "$#{get_size(a)}\r\n"
-          command << a
-          command << "\r\n"
-        end
-
-        @logger.debug { "*** sending: #{command}" } if @logger
-        maybe_lock do
-          @redis_callbacks << [REPLY_PROCESSOR[argv[0]], blk]
-          send_data command
-        end
+        call_commands([argv], false, &blk)
       end
 
       ##
@@ -474,24 +454,23 @@ module EventMachine
         end
 
         callback = @redis_callbacks.shift
-        if callback.length == 2
-          processor, blk = callback
-          value = processor.call(value) if processor
-          
-          blk.call(value) if blk
-        else
-          # That was a pipeline!
-          processors, pipeline_count, blk = callback
-          p = processors.shift()
-          value = p.call(value) if p
-          @values ||= []
-          @values << value
-          if pipeline_count > 1
-            @redis_callbacks.unshift [processors, pipeline_count - 1, blk] # Put back in the pipeline and just wait for the next 
+        commands, pipelined, blk = callback
+        @values ||= []
+        command = commands[@values.size]
+        processor = REPLY_PROCESSOR[command[0]]
+        value = processor.call(value) if processor
+        @values.push(value)
+        if @values.size == commands.size
+          if !pipelined
+            # This was not a PIPELINE!
+            blk.call(@values[0]) if blk
           else
             blk.call(@values) if blk
-            @values = []
           end
+          @values = []
+        else
+          # We need to wait for the other commands to succeed as well
+          @redis_callbacks.unshift([commands, blk])
         end
       end
 
