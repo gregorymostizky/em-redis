@@ -20,6 +20,8 @@ module EventMachine
 
       BOOLEAN_PROCESSOR = lambda{|r| r == 1 }
 
+      TYPE_PROCESSOR = lambda { |t| t == "none" ? nil : t  }
+
       REPLY_PROCESSOR = {
         "exists"    => BOOLEAN_PROCESSOR,
         "sismember" => BOOLEAN_PROCESSOR,
@@ -37,6 +39,7 @@ module EventMachine
         "hset"      => BOOLEAN_PROCESSOR,
         "hdel"      => BOOLEAN_PROCESSOR,
         "hexists"   => BOOLEAN_PROCESSOR,
+        "type"      => TYPE_PROCESSOR,
         "keys"      => lambda {|r|
           if r.is_a?(Array)
             r
