@@ -457,6 +457,7 @@ module EventMachine
         commands, pipelined, blk = callback
         @values ||= []
         command = commands[@values.size]
+        
         processor = REPLY_PROCESSOR[command[0]]
         value = processor.call(value) if processor
         @values.push(value)
