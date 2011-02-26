@@ -470,8 +470,8 @@ module EventMachine
           @values = []
         else
           # We need to wait for the other commands to succeed as well
-          @redis_callbacks.unshift([commands, blk])
-        end
+          @redis_callbacks.unshift([commands, pipelined, blk])
+        end 
       end
 
       def unbind
