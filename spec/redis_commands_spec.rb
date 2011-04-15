@@ -759,3 +759,31 @@ EM.describe EM::Protocols::Redis, "with nested multi-bulk response" do
     end
   end
 end
+
+EM.describe EM::Protocols::Redis, "monitor" do
+  default_timeout 1
+
+  before do
+    @r = EM::Protocols::Redis.connect :db => 14
+    @r.flushdb
+  end
+
+  after do
+    @r.unmonitor
+    @r.close_connection
+  end
+
+  it "returns monitored commands" do
+    # EM.add_timer(0.2) do
+    #   puts "GETTT"
+    #   @r.get('foo')
+    # end
+    @r.monitor do |line|
+      puts line
+      line.should == "OK"
+    end
+      @r.get("foo")
+      done
+    #@r.get "foo"
+  end
+end

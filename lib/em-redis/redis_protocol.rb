@@ -145,7 +145,7 @@ module EventMachine
       }
 
       DISABLED_COMMANDS = {
-        "monitor" => true,
+        # "monitor" => true,
         "sync"    => true
       }
 
@@ -248,6 +248,23 @@ module EventMachine
         else
           call_command(args.unshift(:msetnx), &blk)
         end
+      end
+
+      def monitor(&blk)
+        @monitoring = true
+        monitor_callback = lambda do |line|
+          if @monitoring
+            blk.call(line)
+            maybe_lock do
+              @redis_callbacks << [[["monitor"]], false, monitor_callback]
+            end
+          end
+        end
+        call_command(["monitor"], &monitor_callback)
+      end
+
+      def unmonitor
+        @monitoring = false
       end
 
       def errback(&blk)
