@@ -170,7 +170,7 @@ EM.describe EM::Protocols::Redis, "connected to a db containing some simple stri
     @c.type "a" do |r|
       r.should == "string"
       @c.type "zzz" do |r|
-        r.should == "none"
+        r.should == nil
         done
       end
     end

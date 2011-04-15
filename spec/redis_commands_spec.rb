@@ -184,7 +184,7 @@ EM.describe EM::Protocols::Redis do
     @r['foo'] = 'nik'
     @r.type('foo') { |r| r.should == "string" }
     @r.del 'foo'
-    @r.type('foo') { |r| r.should == "none" ; done }
+    @r.type('foo') { |r| r.should == nil ; done }
   end
   #
   it "should be able to push to the head of a list (LPUSH)" do
