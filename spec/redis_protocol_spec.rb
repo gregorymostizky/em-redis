@@ -69,29 +69,29 @@ EM.describe EM::Protocols::Redis do
     @c.receive_data ":0\r\n"
   end
 
-  should "parse an inline error response" do
-    lambda do
-      @c.call_command(["blarg"])
-      @c.receive_data "-FAIL\r\n"
-    end.should.raise(EM::P::Redis::RedisError)
-    done
-  end
+  #should "parse an inline error response" do
+  #  lambda do
+  #    @c.call_command(["blarg"])
+  #    @c.receive_data "-FAIL\r\n"
+  #  end.should.raise(EM::P::Redis::RedisError)
+  #  done
+  #end
 
-  should "trigger a given error callback (specified with on_error) for inline error response instead of raising an error" do
-    lambda do
-      @c.call_command(["blarg"])
-      @c.on_error {|code| code.should == "FAIL"; done }
-      @c.receive_data "-FAIL\r\n"
-    end.should.not.raise(EM::P::Redis::RedisError)
-  end
+  #should "trigger a given error callback (specified with on_error) for inline error response instead of raising an error" do
+  #  lambda do
+  #    @c.call_command(["blarg"])
+  #    @c.on_error {|code| code.should == "FAIL"; done }
+  #    @c.receive_data "-FAIL\r\n"
+  #  end.should.not.raise(EM::P::Redis::RedisError)
+  #end
 
-  should "trigger a given error callback for inline error response instead of raising an error" do
-    lambda do
-      @c.call_command(["blarg"])
-      @c.errback { |code| code.should == "FAIL"; done }
-      @c.receive_data "-FAIL\r\n"
-    end.should.not.raise(EM::P::Redis::RedisError)
-  end
+  #should "trigger a given error callback for inline error response instead of raising an error" do
+  #  lambda do
+  #    @c.call_command(["blarg"])
+  #    @c.errback { |code| code.should == "FAIL"; done }
+  #    @c.receive_data "-FAIL\r\n"
+  #  end.should.not.raise(EM::P::Redis::RedisError)
+  #end
 
   # Bulk response
   should "parse a bulk response" do
