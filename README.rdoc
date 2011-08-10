@@ -1,5 +1,13 @@
 == EM-REDIS
 
+
+== FORK CHANGES:
+
+EM-Redis will now ignore silently all commands if client is disconnected.
+
+This is useful in situations where the redis usage is optional and the service can perform without.
+
+
 == DESCRIPTION:
 
 An EventMachine[http://rubyeventmachine.com/] based library for interacting with the very cool Redis[http://code.google.com/p/redis/] data store by Salvatore 'antirez' Sanfilippo.

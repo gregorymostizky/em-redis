@@ -10,147 +10,147 @@ module EventMachine
       # constants
       #########################
 
-      OK      = "OK".freeze
-      MINUS    = "-".freeze
-      PLUS     = "+".freeze
-      COLON    = ":".freeze
-      DOLLAR   = "$".freeze
+      OK = "OK".freeze
+      MINUS = "-".freeze
+      PLUS = "+".freeze
+      COLON = ":".freeze
+      DOLLAR = "$".freeze
       ASTERISK = "*".freeze
-      DELIM    = "\r\n".freeze
+      DELIM = "\r\n".freeze
 
-      BOOLEAN_PROCESSOR = lambda{|r| r == 1 }
+      BOOLEAN_PROCESSOR = lambda { |r| r == 1 }
 
-      TYPE_PROCESSOR = lambda { |t| t == "none" ? nil : t  }
+      TYPE_PROCESSOR = lambda { |t| t == "none" ? nil : t }
 
       REPLY_PROCESSOR = {
-        "exists"    => BOOLEAN_PROCESSOR,
-        "sismember" => BOOLEAN_PROCESSOR,
-        "sadd"      => BOOLEAN_PROCESSOR,
-        "srem"      => BOOLEAN_PROCESSOR,
-        "smove"     => BOOLEAN_PROCESSOR,
-        "zadd"      => BOOLEAN_PROCESSOR,
-        "zrem"      => BOOLEAN_PROCESSOR,
-        "move"      => BOOLEAN_PROCESSOR,
-        "setnx"     => BOOLEAN_PROCESSOR,
-        "del"       => BOOLEAN_PROCESSOR,
-        "renamenx"  => BOOLEAN_PROCESSOR,
-        "expire"    => BOOLEAN_PROCESSOR,
-        "select"    => BOOLEAN_PROCESSOR, # not in redis gem
-        "hset"      => BOOLEAN_PROCESSOR,
-        "hdel"      => BOOLEAN_PROCESSOR,
-        "hexists"   => BOOLEAN_PROCESSOR,
-        "type"      => TYPE_PROCESSOR,
-        "keys"      => lambda {|r|
-          if r.is_a?(Array)
-            r
-          else
-            r.split(" ")
-          end
-        },
-        "info"      => lambda{|r|
-          info = {}
-          r.each_line {|kv|
-            k,v = kv.split(":",2).map{|x| x.chomp}
-            info[k.to_sym] = v
+          "exists" => BOOLEAN_PROCESSOR,
+          "sismember" => BOOLEAN_PROCESSOR,
+          "sadd" => BOOLEAN_PROCESSOR,
+          "srem" => BOOLEAN_PROCESSOR,
+          "smove" => BOOLEAN_PROCESSOR,
+          "zadd" => BOOLEAN_PROCESSOR,
+          "zrem" => BOOLEAN_PROCESSOR,
+          "move" => BOOLEAN_PROCESSOR,
+          "setnx" => BOOLEAN_PROCESSOR,
+          "del" => BOOLEAN_PROCESSOR,
+          "renamenx" => BOOLEAN_PROCESSOR,
+          "expire" => BOOLEAN_PROCESSOR,
+          "select" => BOOLEAN_PROCESSOR, # not in redis gem
+          "hset" => BOOLEAN_PROCESSOR,
+          "hdel" => BOOLEAN_PROCESSOR,
+          "hexists" => BOOLEAN_PROCESSOR,
+          "type" => TYPE_PROCESSOR,
+          "keys" => lambda { |r|
+            if r.is_a?(Array)
+              r
+            else
+              r.split(" ")
+            end
+          },
+          "info" => lambda { |r|
+            info = {}
+            r.each_line { |kv|
+              k, v = kv.split(":", 2).map { |x| x.chomp }
+              info[k.to_sym] = v
+            }
+            info
+          },
+          "hgetall" => lambda { |r|
+            begin
+              Hash[*r]
+            rescue ArgumentError # Happens when the key is not set, redis returns none.
+              {}
+            end
           }
-          info
-        }, 
-        "hgetall"   => lambda{|r|
-          begin
-            Hash[*r] 
-          rescue ArgumentError # Happens when the key is not set, redis returns none.
-            {}
-          end
-        }
       }
 
       ALIASES = {
-        "flush_db"             => "flushdb",
-        "flush_all"            => "flushall",
-        "last_save"            => "lastsave",
-        "key?"                 => "exists",
-        "delete"               => "del",
-        "randkey"              => "randomkey",
-        "list_length"          => "llen",
-        "push_tail"            => "rpush",
-        "push_head"            => "lpush",
-        "pop_tail"             => "rpop",
-        "pop_head"             => "lpop",
-        "list_set"             => "lset",
-        "list_range"           => "lrange",
-        "list_trim"            => "ltrim",
-        "list_index"           => "lindex",
-        "list_rm"              => "lrem",
-        "set_add"              => "sadd",
-        "set_delete"           => "srem",
-        "set_count"            => "scard",
-        "set_member?"          => "sismember",
-        "set_members"          => "smembers",
-        "set_intersect"        => "sinter",
-        "set_intersect_store"  => "sinterstore",
-        "set_inter_store"      => "sinterstore",
-        "set_union"            => "sunion",
-        "set_union_store"      => "sunionstore",
-        "set_diff"             => "sdiff",
-        "set_diff_store"       => "sdiffstore",
-        "set_move"             => "smove",
-        "set_unless_exists"    => "setnx",
-        "rename_unless_exists" => "renamenx",
-        "type?"                => "type",
-        "zset_add"             => "zadd",
-        "zset_count"           => "zcard",
-        "zset_range_by_score"  => "zrangebyscore",
-        "zset_reverse_range"   => "zrevrange",
-        "zset_range"           => "zrange",
-        "zset_delete"          => "zrem",
-        "zset_score"           => "zscore",
-        "zset_incr_by"         => "zincrby",
-        "zset_increment_by"    => "zincrby",
-        # these aliases aren't in redis gem
-        "background_save"      => 'bgsave',
-        "async_save"           => 'bgsave',
-        "members"              => 'smembers',
-        "decrement_by"         => "decrby",
-        "decrement"            => "decr",
-        "increment_by"         => "incrby",
-        "increment"            => "incr",
-        "set_if_nil"           => "setnx",
-        "multi_get"            => "mget",
-        "random_key"           => "randomkey",
-        "random"               => "randomkey",
-        "rename_if_nil"        => "renamenx",
-        "tail_pop"             => "rpop",
-        "pop"                  => "rpop",
-        "head_pop"             => "lpop",
-        "shift"                => "lpop",
-        "list_remove"          => "lrem",
-        "index"                => "lindex",
-        "trim"                 => "ltrim",
-        "list_range"           => "lrange",
-        "range"                => "lrange",
-        "list_len"             => "llen",
-        "len"                  => "llen",
-        "head_push"            => "lpush",
-        "unshift"              => "lpush",
-        "tail_push"            => "rpush",
-        "push"                 => "rpush",
-        "add"                  => "sadd",
-        "set_remove"           => "srem",
-        "set_size"             => "scard",
-        "member?"              => "sismember",
-        "intersect"            => "sinter",
-        "intersect_and_store"  => "sinterstore",
-        "members"              => "smembers",
-        "exists?"              => "exists"
+          "flush_db" => "flushdb",
+          "flush_all" => "flushall",
+          "last_save" => "lastsave",
+          "key?" => "exists",
+          "delete" => "del",
+          "randkey" => "randomkey",
+          "list_length" => "llen",
+          "push_tail" => "rpush",
+          "push_head" => "lpush",
+          "pop_tail" => "rpop",
+          "pop_head" => "lpop",
+          "list_set" => "lset",
+          "list_range" => "lrange",
+          "list_trim" => "ltrim",
+          "list_index" => "lindex",
+          "list_rm" => "lrem",
+          "set_add" => "sadd",
+          "set_delete" => "srem",
+          "set_count" => "scard",
+          "set_member?" => "sismember",
+          "set_members" => "smembers",
+          "set_intersect" => "sinter",
+          "set_intersect_store" => "sinterstore",
+          "set_inter_store" => "sinterstore",
+          "set_union" => "sunion",
+          "set_union_store" => "sunionstore",
+          "set_diff" => "sdiff",
+          "set_diff_store" => "sdiffstore",
+          "set_move" => "smove",
+          "set_unless_exists" => "setnx",
+          "rename_unless_exists" => "renamenx",
+          "type?" => "type",
+          "zset_add" => "zadd",
+          "zset_count" => "zcard",
+          "zset_range_by_score" => "zrangebyscore",
+          "zset_reverse_range" => "zrevrange",
+          "zset_range" => "zrange",
+          "zset_delete" => "zrem",
+          "zset_score" => "zscore",
+          "zset_incr_by" => "zincrby",
+          "zset_increment_by" => "zincrby",
+          # these aliases aren't in redis gem
+          "background_save" => 'bgsave',
+          "async_save" => 'bgsave',
+          "members" => 'smembers',
+          "decrement_by" => "decrby",
+          "decrement" => "decr",
+          "increment_by" => "incrby",
+          "increment" => "incr",
+          "set_if_nil" => "setnx",
+          "multi_get" => "mget",
+          "random_key" => "randomkey",
+          "random" => "randomkey",
+          "rename_if_nil" => "renamenx",
+          "tail_pop" => "rpop",
+          "pop" => "rpop",
+          "head_pop" => "lpop",
+          "shift" => "lpop",
+          "list_remove" => "lrem",
+          "index" => "lindex",
+          "trim" => "ltrim",
+          "list_range" => "lrange",
+          "range" => "lrange",
+          "list_len" => "llen",
+          "len" => "llen",
+          "head_push" => "lpush",
+          "unshift" => "lpush",
+          "tail_push" => "rpush",
+          "push" => "rpush",
+          "add" => "sadd",
+          "set_remove" => "srem",
+          "set_size" => "scard",
+          "member?" => "sismember",
+          "intersect" => "sinter",
+          "intersect_and_store" => "sinterstore",
+          "members" => "smembers",
+          "exists?" => "exists"
       }
 
       DISABLED_COMMANDS = {
-        "monitor" => true,
-        "sync"    => true
+          "monitor" => true,
+          "sync" => true
       }
 
-      def []=(key,value)
-        set(key,value)
+      def []=(key, value)
+        set(key, value)
       end
 
       def set(key, value, expiry=nil)
@@ -171,11 +171,11 @@ module EventMachine
       end
 
       def incr(key, increment = nil, &blk)
-        call_command(increment ? ["incrby",key,increment] : ["incr",key], &blk)
+        call_command(increment ? ["incrby", key, increment] : ["incr", key], &blk)
       end
 
       def decr(key, decrement = nil, &blk)
-        call_command(decrement ? ["decrby",key,decrement] : ["decr",key], &blk)
+        call_command(decrement ? ["decrby", key, decrement] : ["decr", key], &blk)
       end
 
       def select(db, &blk)
@@ -253,6 +253,7 @@ module EventMachine
       def errback(&blk)
         @error_callback = blk
       end
+
       alias_method :on_error, :errback
 
       def method_missing(*argv, &blk)
@@ -268,13 +269,18 @@ module EventMachine
           callback { yield }
         end
       end
-      
+
       def call_commands(pipeline, pipelined = true, &blk)
+        unless @connected
+          blk.call
+          return
+        end
+
         command = ""
         comms = []
-        pipeline.each  do |argv|
+        pipeline.each do |argv|
           argv[0] = argv[0].to_s.downcase
-        
+
           argv[0] = ALIASES[argv[0]] if ALIASES[argv[0]]
           raise "#{argv[0]} command is disabled" if DISABLED_COMMANDS[argv[0]]
 
@@ -287,7 +293,7 @@ module EventMachine
             command << "\r\n"
           end
         end
-        
+
         @logger.debug { "*** sending: #{command}" } if @logger
         maybe_lock do
           @redis_callbacks << [comms, pipelined, blk]
@@ -303,8 +309,10 @@ module EventMachine
       # errors
       #########################
 
-      class ParserError < StandardError; end
-      class ProtocolError < StandardError; end
+      class ParserError < StandardError;
+      end
+      class ProtocolError < StandardError;
+      end
 
       class RedisError < StandardError
         attr_accessor :code
@@ -317,31 +325,34 @@ module EventMachine
 
       def self.connect(*args)
         case args.length
-        when 0
-          options = {}
-        when 1
-          arg = args.shift
-          case arg
-          when Hash then options = arg
-          when String then options = {:host => arg}
-          else raise ArgumentError, 'first argument must be Hash or String'
-          end
-        when 2
-          options = {:host => args[0], :port => args[1]}
-        else
-          raise ArgumentError, "wrong number of arguments (#{args.length} for 1)"
+          when 0
+            options = {}
+          when 1
+            arg = args.shift
+            case arg
+              when Hash then
+                options = arg
+              when String then
+                options = {:host => arg}
+              else
+                raise ArgumentError, 'first argument must be Hash or String'
+            end
+          when 2
+            options = {:host => args[0], :port => args[1]}
+          else
+            raise ArgumentError, "wrong number of arguments (#{args.length} for 1)"
         end
         options[:host] ||= '127.0.0.1'
-        options[:port]   = (options[:port] || 6379).to_i
+        options[:port] = (options[:port] || 6379).to_i
         EM.connect options[:host], options[:port], self, options
       end
 
       def initialize(options = {})
-        @host           = options[:host]
-        @port           = options[:port]
-        @db             = (options[:db] || 0).to_i
-        @password       = options[:password]
-        @logger         = options[:logger]
+        @host = options[:host]
+        @port = options[:port]
+        @db = (options[:db] || 0).to_i
+        @password = options[:password]
+        @logger = options[:logger]
         @error_callback = lambda do |code|
           err = RedisError.new
           err.code = code
@@ -357,6 +368,7 @@ module EventMachine
         call_command(["auth", @password]) if @password
         call_command(["select", @db]) unless @db == 0
       end
+
       private :auth_and_select_db
 
       def connection_completed
@@ -364,9 +376,9 @@ module EventMachine
 
         @redis_callbacks = []
         @previous_multibulks = []
-        @multibulk_n     = false
-        @reconnecting    = false
-        @connected       = true
+        @multibulk_n = false
+        @reconnecting = false
+        @connected = true
 
         succeed
       end
@@ -394,45 +406,45 @@ module EventMachine
         reply_args = line.slice(1..-3) # remove type character and \r\n
         case reply_type
 
-        #e.g. -MISSING
-        when MINUS
-          # Missing, dispatch empty response
-          dispatch_response(nil)
-        # e.g. +OK
-        when PLUS
-          dispatch_response(reply_args)
-        # e.g. $3\r\nabc\r\n
-        # 'bulk' is more complex because it could be part of multi-bulk
-        when DOLLAR
-          data_len = Integer(reply_args)
-          if data_len == -1 # expect no data; return nil
+          #e.g. -MISSING
+          when MINUS
+            # Missing, dispatch empty response
             dispatch_response(nil)
-          elsif @buffer.size >= data_len + 2 # buffer is full of expected data
-            dispatch_response(@buffer.slice!(0, data_len))
-            @buffer.slice!(0,2) # tossing \r\n
-          else # buffer isn't full or nil
-            # TODO: don't control execution with exceptions
-            raise ParserError
-          end
-        #e.g. :8
-        when COLON
-          dispatch_response(Integer(reply_args))
-        #e.g. *2\r\n$1\r\na\r\n$1\r\nb\r\n 
-        when ASTERISK
-          multibulk_count = Integer(reply_args)
-          if multibulk_count == -1 || multibulk_count == 0
-            dispatch_response([])
-          else
-            if @multibulk_n
-              @previous_multibulks << [@multibulk_n, @multibulk_values]
+          # e.g. +OK
+          when PLUS
+            dispatch_response(reply_args)
+          # e.g. $3\r\nabc\r\n
+          # 'bulk' is more complex because it could be part of multi-bulk
+          when DOLLAR
+            data_len = Integer(reply_args)
+            if data_len == -1 # expect no data; return nil
+              dispatch_response(nil)
+            elsif @buffer.size >= data_len + 2 # buffer is full of expected data
+              dispatch_response(@buffer.slice!(0, data_len))
+              @buffer.slice!(0, 2) # tossing \r\n
+            else # buffer isn't full or nil
+              # TODO: don't control execution with exceptions
+              raise ParserError
             end
-            @multibulk_n = multibulk_count
-            @multibulk_values = []
-          end
-        # Whu?
-        else
-          # TODO: get rid of this exception
-          raise ProtocolError, "reply type not recognized: #{line.strip}"
+          #e.g. :8
+          when COLON
+            dispatch_response(Integer(reply_args))
+          #e.g. *2\r\n$1\r\na\r\n$1\r\nb\r\n
+          when ASTERISK
+            multibulk_count = Integer(reply_args)
+            if multibulk_count == -1 || multibulk_count == 0
+              dispatch_response([])
+            else
+              if @multibulk_n
+                @previous_multibulks << [@multibulk_n, @multibulk_values]
+              end
+              @multibulk_n = multibulk_count
+              @multibulk_values = []
+            end
+          # Whu?
+          else
+            # TODO: get rid of this exception
+            raise ProtocolError, "reply type not recognized: #{line.strip}"
         end
       end
 
@@ -443,7 +455,7 @@ module EventMachine
 
           if @multibulk_n == 0
             value = @multibulk_values
-            @multibulk_n,@multibulk_values = @previous_multibulks.pop
+            @multibulk_n, @multibulk_values = @previous_multibulks.pop
             if @multibulk_n
               dispatch_response(value)
               return
@@ -457,7 +469,7 @@ module EventMachine
         commands, pipelined, blk = callback
         @values ||= []
         command = commands[@values.size]
-        
+
         processor = REPLY_PROCESSOR[command[0]]
         value = processor.call(value) if processor
         @values.push(value)
@@ -472,30 +484,25 @@ module EventMachine
         else
           # We need to wait for the other commands to succeed as well
           @redis_callbacks.unshift([commands, pipelined, blk])
-        end 
+        end
       end
 
       def unbind
-        @logger.debug { "Disconnected" }  if @logger
-        if @connected || @reconnecting
-          EM.add_timer(1) do
-            @logger.debug { "Reconnecting to #{@host}:#{@port}" }  if @logger
-            reconnect @host, @port
-            auth_and_select_db
-          end
-          @connected = false
-          @reconnecting = true
-          @deferred_status = nil
-        else
-          # TODO: get rid of this exception
-          raise 'Unable to connect to redis server'
+        @logger.debug { "Disconnected" } if @logger
+        EM.add_timer(1) do
+          @logger.debug { "Reconnecting to #{@host}:#{@port}" } if @logger
+          reconnect @host, @port
+          auth_and_select_db
         end
+        @connected = false
+        @reconnecting = true
+        @deferred_status = nil
       end
 
       private
-        def get_size(string)
-          string.respond_to?(:bytesize) ? string.bytesize : string.size
-        end
+      def get_size(string)
+        string.respond_to?(:bytesize) ? string.bytesize : string.size
+      end
 
     end
   end
