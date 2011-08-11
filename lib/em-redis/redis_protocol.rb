@@ -272,7 +272,7 @@ module EventMachine
 
       def call_commands(pipeline, pipelined = true, &blk)
         unless @connected
-          blk.call
+          blk.call if blk
           return
         end
 
