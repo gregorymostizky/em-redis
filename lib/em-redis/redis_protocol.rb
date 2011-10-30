@@ -153,6 +153,12 @@ module EventMachine
         set(key, value)
       end
 
+      def get(key) 
+        call_command([:get,key]) do |s|
+          yield s if block_given?
+        end
+      end
+    
       def set(key, value, expiry=nil)
         call_command([:set, key, value]) do |s|
           yield s if block_given?
